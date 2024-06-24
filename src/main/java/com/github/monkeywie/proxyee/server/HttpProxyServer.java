@@ -175,6 +175,7 @@ public class HttpProxyServer {
         bossGroup = new NioEventLoopGroup(serverConfig.getBossGroupThreads());
         workerGroup = new NioEventLoopGroup(serverConfig.getWorkerGroupThreads());
         ServerBootstrap bootstrap = new ServerBootstrap();
+
         bootstrap.group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
 //                .option(ChannelOption.SO_BACKLOG, 100)
@@ -183,10 +184,13 @@ public class HttpProxyServer {
 
                     @Override
                     protected void initChannel(Channel ch) throws Exception {
+                        // ch 应该是一个 Channel 对象，代表一个网络连接。
+                        // ch.pipeline() 获取该连接对应的 ChannelPipeline 对象。
                         ch.pipeline().addLast("httpCodec", new HttpServerCodec(
                                 serverConfig.getMaxInitialLineLength(),
                                 serverConfig.getMaxHeaderSize(),
                                 serverConfig.getMaxChunkSize()));
+                        // 添加一个 IdleStateHandler 处理器，用于检测连接的读、写和读写空闲状态。
                         if (serverConfig.getIdleStateCheck() != null) {
                             IdleStateCheck idleStateCheck = serverConfig.getIdleStateCheck();
                             ch.pipeline().addLast("idleStateCheck",
@@ -194,12 +198,14 @@ public class HttpProxyServer {
                                             idleStateCheck.getAllIdleTime(), TimeUnit.MILLISECONDS)
                             );
                         }
+                        // 添加一个 HttpProxyServerHandler 处理器，用于处理 HTTP 请求。
                         ch.pipeline().addLast("serverHandle",
                                 new HttpProxyServerHandler(serverConfig, proxyInterceptInitializer, proxyConfig,
                                         httpProxyExceptionHandle));
                     }
                 });
 
+        // 绑定端口
         return ip == null ? bootstrap.bind(port) : bootstrap.bind(ip, port);
     }
 
