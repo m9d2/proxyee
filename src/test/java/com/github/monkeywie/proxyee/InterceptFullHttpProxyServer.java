@@ -1,6 +1,7 @@
 package com.github.monkeywie.proxyee;
 
 import com.github.monkeywie.proxyee.exception.HttpProxyExceptionHandle;
+import com.github.monkeywie.proxyee.handler.WebSocketFrameHandler;
 import com.github.monkeywie.proxyee.intercept.HttpProxyIntercept;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptInitializer;
 import com.github.monkeywie.proxyee.intercept.HttpProxyInterceptPipeline;
@@ -9,9 +10,10 @@ import com.github.monkeywie.proxyee.intercept.common.FullRequestIntercept;
 import com.github.monkeywie.proxyee.intercept.common.FullResponseIntercept;
 import com.github.monkeywie.proxyee.server.HttpProxyServer;
 import com.github.monkeywie.proxyee.server.HttpProxyServerConfig;
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.Channel;
+import io.netty.channel.ChannelPipeline;
 import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
 
 import java.nio.charset.Charset;
 
@@ -48,6 +50,17 @@ public class InterceptFullHttpProxyServer {
 
                             @Override
                             public void beforeRequest(Channel clientChannel, HttpRequest httpRequest, HttpProxyInterceptPipeline pipeline) throws Exception {
+                                if (isWebSocketUpgrade(httpRequest)) {
+                                    // 获取 ChannelPipeline
+                                    ChannelPipeline cp = clientChannel.pipeline();
+
+                                    // 移除 HttpServerCodec
+                                    cp.remove(HttpServerCodec.class);
+
+                                    // 添加 WebSocket 处理器
+                                    cp.addLast(new WebSocketServerProtocolHandler("/ws"));
+                                    cp.addLast(new WebSocketFrameHandler());
+                                }
                                 FullHttpRequest fullHttpRequest = (FullHttpRequest) httpRequest;
                                 this.fullHttpRequest = new DefaultFullHttpRequest(fullHttpRequest.protocolVersion(),
                                         fullHttpRequest.method(),
@@ -85,4 +98,13 @@ public class InterceptFullHttpProxyServer {
                 )
                 .start(9999);
     }
+
+
+    private static boolean isWebSocketUpgrade(HttpRequest req) {
+        return req.headers().get("Upgrade") != null &&
+                req.headers().get("Upgrade").toLowerCase().equals("websocket") &&
+                req.headers().get("Connection") != null &&
+                req.headers().get("Connection").toLowerCase().contains("upgrade");
+    }
+
 }

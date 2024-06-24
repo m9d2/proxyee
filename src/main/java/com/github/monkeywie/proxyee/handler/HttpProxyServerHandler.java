@@ -27,12 +27,14 @@ import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.timeout.IdleStateEvent;
 import io.netty.resolver.NoopAddressResolverGroup;
 import io.netty.util.ReferenceCountUtil;
+import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.util.LinkedList;
 import java.util.List;
 
+@Slf4j
 public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
 
     private ChannelFuture cf;
@@ -119,7 +121,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
         this.exceptionHandle = exceptionHandle;
     }
 
-
+    // 读取并处理从网络中接收到的数据
     @Override
     public void channelRead(final ChannelHandlerContext ctx, final Object msg) throws Exception {
         if (msg instanceof HttpRequest) {
@@ -127,7 +129,10 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
             DecoderResult result = request.decoderResult();
             Throwable cause = result.cause();
 
+            // 解码异常处理
             if (cause instanceof DecoderException) {
+                log.info("解码异常: {}", cause.getMessage());
+
                 setStatus(2);
                 HttpResponseStatus status = null;
 
@@ -146,12 +151,14 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
                 HttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, status);
                 ctx.writeAndFlush(response);
                 //ctx.channel().pipeline().remove("httpCodec");
+                // 释放 Netty 消息对象 msg 的引用计数, 避免内存泄漏
                 ReferenceCountUtil.release(msg);
                 return;
             }
 
             // The first time a connection is established, the host and port number are taken and the proxy handshake is processed.
             if (getStatus() == 0) {
+                // 从 HTTP 请求 request 中获取协议信息，并保存到当前连接对象中
                 setRequestProto(ProtoUtil.getRequestProto(request));
                 if (getRequestProto() == null) { // bad request
                     ctx.channel().close();
@@ -197,17 +204,23 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
                 ReferenceCountUtil.release(msg);
                 setStatus(1);
             }
-        } else { // ssl和websocket的握手处理
+        } else {
+            // ssl和websocket的握手处理
             ByteBuf byteBuf = (ByteBuf) msg;
-            if (getServerConfig().isHandleSsl() && byteBuf.getByte(0) == 22 && doMitm()) {// ssl握手
+            // 检查消息的第一个字节是否为 22，这是 SSL/TLS 协议中 Client Hello 消息的标志
+            if (getServerConfig().isHandleSsl() && byteBuf.getByte(0) == 22 && doMitm()) {
+                // ssl握手
                 getRequestProto().setSsl(true);
                 int port = ((InetSocketAddress) ctx.channel().localAddress()).getPort();
+                // 创建 SSL/TLS 上下文，加载服务器私钥和证书，用于解密和加密 SSL/TLS 流量
                 SslContext sslCtx = SslContextBuilder
                         .forServer(getServerConfig().getServerPriKey(), CertPool.getCert(port, getRequestProto().getHost(), getServerConfig())).build();
+                // 添加到管道头部，用于处理 SSL/TLS 解密后的 HTTP 报文
                 ctx.pipeline().addFirst("httpCodec", new HttpServerCodec(
                         getServerConfig().getMaxInitialLineLength(),
                         getServerConfig().getMaxHeaderSize(),
                         getServerConfig().getMaxChunkSize()));
+                // 添加到管道头部，用于 SSL/TLS 握手和解密
                 ctx.pipeline().addFirst("sslHandle", sslCtx.newHandler(ctx.alloc()));
                 // 重新过一遍pipeline，拿到解密后的的http报文
                 ctx.pipeline().fireChannelRead(msg);
@@ -237,6 +250,7 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
                 ctx.pipeline().fireChannelRead(msg);
                 return;
             }
+            // 如果以上条件都不满足，则认为是其他类型的代理数据，调用 handleProxyData 方法进行处理
             handleProxyData(ctx.channel(), msg, false);
         }
     }
