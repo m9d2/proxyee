@@ -50,17 +50,18 @@ public class InterceptFullHttpProxyServer {
 
                             @Override
                             public void beforeRequest(Channel clientChannel, HttpRequest httpRequest, HttpProxyInterceptPipeline pipeline) throws Exception {
-                                if (isWebSocketUpgrade(httpRequest)) {
-                                    // 获取 ChannelPipeline
-                                    ChannelPipeline cp = clientChannel.pipeline();
-
-                                    // 移除 HttpServerCodec
-                                    cp.remove(HttpServerCodec.class);
-
-                                    // 添加 WebSocket 处理器
-                                    cp.addLast(new WebSocketServerProtocolHandler("/ws"));
-                                    cp.addLast(new WebSocketFrameHandler());
-                                }
+//                                if (isWebSocketUpgrade(httpRequest)) {
+//                                    // 获取 ChannelPipeline
+//                                    ChannelPipeline cp = clientChannel.pipeline();
+////
+////                                    // 移除 HttpServerCodec
+//////                                    cp.remove(HttpServerCodec.class);
+////
+////                                    // 添加 WebSocket 处理器
+////                                    cp.addLast(new WebSocketServerProtocolHandler("/ws"));
+//                                    cp.addLast(new WebSocketFrameHandler());
+//                                    System.out.println("==================");
+//                                }
                                 FullHttpRequest fullHttpRequest = (FullHttpRequest) httpRequest;
                                 this.fullHttpRequest = new DefaultFullHttpRequest(fullHttpRequest.protocolVersion(),
                                         fullHttpRequest.method(),
@@ -71,13 +72,13 @@ public class InterceptFullHttpProxyServer {
 
                             @Override
                             public void afterResponse(Channel clientChannel, Channel proxyChannel, HttpResponse httpResponse, HttpProxyInterceptPipeline pipeline) throws Exception {
-                                System.out.println(fullHttpRequest.toString());
+//                                System.out.println(fullHttpRequest.toString());
                                 System.out.println(this.fullHttpRequest.content().toString(Charset.defaultCharset()));
                                 this.fullHttpRequest.release();
 
                                 FullHttpResponse fullHttpResponse = (FullHttpResponse) httpResponse;
-                                System.out.println(fullHttpResponse.toString());
-                                System.out.println(fullHttpResponse.content().toString(Charset.defaultCharset()));
+//                                System.out.println(fullHttpResponse.toString());
+//                                System.out.println(fullHttpResponse.content().toString(Charset.defaultCharset()));
                                 pipeline.afterResponse(clientChannel, proxyChannel, httpResponse);
                             }
                         });
