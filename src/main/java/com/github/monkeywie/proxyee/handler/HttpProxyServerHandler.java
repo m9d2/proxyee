@@ -21,6 +21,7 @@ import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.websocketx.BinaryWebSocketFrame;
 import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import io.netty.handler.proxy.ProxyHandler;
 import io.netty.handler.ssl.SslContext;
@@ -32,6 +33,8 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.net.InetSocketAddress;
 import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -381,6 +384,11 @@ public class HttpProxyServerHandler extends ChannelInboundHandlerAdapter {
             });
         } else {
             synchronized (getRequestList()) {
+                if (msg instanceof ByteBuf) {
+                    ByteBuf byteBuf = (ByteBuf) msg;
+                    String text = byteBuf.toString(Charset.forName("UTF-8"));
+                    System.out.println("Received text: " + text);
+                }
                 if (getIsConnect()) {
                     getChannelFuture().channel().writeAndFlush(msg);
                 } else {
